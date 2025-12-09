@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../app/generated/prisma"
 }
 
@@ -14,7 +14,7 @@ datasource db {
 }
 
 model Ticket {
-  id          Int  @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   subject     String
   description String
   priority    String
