@@ -1,7 +1,7 @@
 'use server';
-import * as Sentry from '@sentry/nextjs';
 import { prisma } from '../../db/prisma';
 import { revalidatePath } from 'next/cache';
+import { logEvent } from '../../utils/sentry';
 
 export async function createTicket(prevState: { success: boolean; message: string }, formData: FormData): Promise<{ success: boolean; message: string }> {
     try {
@@ -12,7 +12,12 @@ export async function createTicket(prevState: { success: boolean; message: strin
          console.log('Creating ticket with data:', { subject, description, priority });
 
   if (!subject || !description || !priority) {
-    Sentry.captureMessage('Validation error: Missing fields in ticket creation', 'warning');
+      logEvent(
+        'Validation Error: Missing ticket fields',
+        'ticket',
+        { subject, description, priority },
+        'warning'
+      );;
     return { success: false, message: 'All fields are required' };
   }
 
@@ -25,22 +30,51 @@ export async function createTicket(prevState: { success: boolean; message: strin
     }
   });
 
-  Sentry.addBreadcrumb({
-    category: 'ticket',
-    message: `Ticket created ${ticket.id}`,
-    level: 'info'
-  });
-
-  Sentry.captureMessage(`Ticket created with ID: ${ticket.id}`);
+  logEvent(
+      `Ticket created successfully: ${ticket.id}`,
+      'ticket',
+      { ticketId: ticket.id },
+      'info'
+    );
 
   revalidatePath('/tickets');
 
   return { success: true, message: 'Ticket created successfully' };
     } catch (error) {
-        Sentry.captureException(error as Error, {
-            extra: {formData: Object.fromEntries(formData.entries()) }
-        });
+         logEvent(
+      'An error occured while creating the ticket',
+      'ticket',
+      {
+        formData: Object.fromEntries(formData.entries()),
+      },
+      'error',
+      error
+    );
         return { success: false, message: 'An error occurred while creating the ticket' };
     }
    
+}
+
+export async function getTickets() {
+  try {
+    const tickets = await prisma.ticket.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      }
+      });
+
+      logEvent('Fetched tickets successfully', 'ticket', { count: tickets.length }, 'info');
+
+      return tickets;
+  } catch (error) {
+      logEvent(
+      'An error occured while fetching tickets',
+      'ticket',
+      {},
+      'error',
+      error
+    );
+
+      return [];
+  }
 }
