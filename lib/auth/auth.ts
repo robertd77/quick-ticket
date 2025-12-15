@@ -22,10 +22,11 @@ export async function signAuthToken(payload: any) {
 }
 
 // Decrypt and verify token
-export async function verifyAuthToken<T>(token: string): Promise<T> {
+export async function verifyAuthToken(token: string) {
   try {
     const { payload } = await jwtVerify(token, secret);
-    return payload as T;
+
+    return payload;
   } catch (error) {
     logEvent(
       'Error verifying auth token',
@@ -62,7 +63,7 @@ export async function getAuthCookie() {
 }
 
 // Clear auth cookie
-export async function clearAuthCookie() {
+export async function removeAuthCookie() {
   try {
     const cookieStore = await cookies();
     cookieStore.delete(cookieName);

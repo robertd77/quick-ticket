@@ -3,7 +3,12 @@
 import { prisma } from '../../db/prisma';
 import bcrypt from 'bcryptjs';
 import { logEvent } from '../../utils/sentry';
-import { signAuthToken, setAuthCookie } from '../../lib/auth/auth';
+import {
+  signAuthToken,
+  setAuthCookie,
+  removeAuthCookie,
+} from '../../lib/auth/auth';
+import { log } from 'console';
 
 type ResponseResult = {
   success: boolean;
@@ -77,5 +82,61 @@ export async function registerUser(
       error
     );
     return { success: false, message: 'Error registering user' };
+  }
+}
+
+// Log user out and remove auth cookie
+export async function logoutUser(): Promise<ResponseResult> {
+  try {
+    await removeAuthCookie();
+    logEvent('User logged out successfully', 'auth', {}, 'info');
+    return { success: true, message: 'Logout successful' };
+  } catch (error) {
+    logEvent('Error logging out user', 'auth', {}, 'error', error);
+    return { success: false, message: 'Error logging out' };
+  }
+}
+
+// Login User
+export async function loginUser(
+  prevState: ResponseResult,
+  formData: FormData
+): Promise<ResponseResult> {
+  try {
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    if (!email || !password) {
+      logEvent(
+        'Validation Error: Missing login fields',
+        'auth',
+        { email },
+        'warning'
+      );
+      return { success: false, message: 'Email and password are required' };
+    }
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      logEvent('Login Error: User not found', 'auth', { email }, 'warning');
+      return { success: false, message: 'Invalid email or password' };
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      logEvent('Login Error: Incorrect password', 'auth', { email }, 'warning');
+      return { success: false, message: 'Invalid email or password' };
+    }
+
+    const token = await signAuthToken({ id: user.id });
+    await setAuthCookie(token);
+
+    return { success: true, message: 'Login successful' };
+  } catch (error) {
+    logEvent('Unexpected error logging in user', 'auth', {}, 'error', error);
+    return { success: false, message: 'Error logging in user' };
   }
 }
