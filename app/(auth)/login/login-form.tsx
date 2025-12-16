@@ -49,7 +49,7 @@ const LoginForm = () => {
             required
           />
           <button
-            className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 transition disabled:opacity-50"
+            className="w-full cursor-pointer bg-blue-600 text-white p-3 rounded hover:bg-blue-700 transition disabled:opacity-50"
             type="submit"
           >
             Login

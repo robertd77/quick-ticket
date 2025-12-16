@@ -3,21 +3,29 @@ import { prisma } from '../../db/prisma';
 import { revalidatePath } from 'next/cache';
 import { logEvent } from '../../utils/sentry';
 import { getAuthCookie, verifyAuthToken } from '../../lib/auth/auth';
+import { getCurrentUser } from '../../lib/auth/current-user';
 
 export async function createTicket(
   prevState: { success: boolean; message: string },
   formData: FormData
 ): Promise<{ success: boolean; message: string }> {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      logEvent(
+        'Unauthenticated create ticket attempted',
+        'ticket',
+        {},
+        'warning'
+      );
+      return {
+        success: false,
+        message: 'You must be logged in to submit a ticket',
+      };
+    }
     const subject = formData.get('subject') as string;
     const description = formData.get('description') as string;
     const priority = formData.get('priority') as string;
-
-    console.log('Creating ticket with data:', {
-      subject,
-      description,
-      priority,
-    });
 
     if (!subject || !description || !priority) {
       logEvent(
@@ -44,7 +52,7 @@ export async function createTicket(
       };
     }
 
-    const payload = await verifyAuthToken<{ id: string }>(token);
+    const payload = await verifyAuthToken(token);
     const userId = payload?.id;
     if (!userId) {
       logEvent(
@@ -63,7 +71,7 @@ export async function createTicket(
         description,
         priority,
         user: {
-          connect: { id: userId },
+          connect: { id: user.id },
         },
       },
     });
@@ -97,7 +105,18 @@ export async function createTicket(
 
 export async function getTickets() {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      logEvent(
+        'Unauthenticated get tickets attempted',
+        'ticket',
+        {},
+        'warning'
+      );
+      return [];
+    }
     const tickets = await prisma.ticket.findMany({
+      where: { userId: user.id },
       orderBy: {
         createdAt: 'desc',
       },
