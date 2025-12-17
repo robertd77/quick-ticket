@@ -172,3 +172,51 @@ export async function getTicketById(id: string) {
     return null;
   }
 }
+
+// Close ticket
+export async function closeTicket(
+  prevState: { success: boolean; message: string },
+  formData: FormData
+): Promise<{ success: boolean; message: string }> {
+  const ticketId = Number(formData.get('ticketId'));
+
+  if (!ticketId) {
+    logEvent('Missing ticket ID', 'ticket', {}, 'warning');
+    return { success: false, message: 'Ticket ID is required' };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    logEvent(
+      'Unauthenticated close ticket attempted',
+      'ticket',
+      { ticketId },
+      'warning'
+    );
+    return {
+      success: false,
+      message: 'You must be logged in to close a ticket',
+    };
+  }
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+  });
+
+  if (!ticket || ticket.userId !== user.id) {
+    logEvent(
+      'Unauthorized close ticket attempted',
+      'ticket',
+      { ticketId, userId: user.id },
+      'warning'
+    );
+    return { success: false, message: 'Unauthorized to close this ticket' };
+  }
+
+  await prisma.ticket.update({
+    where: { id: ticketId },
+    data: { status: 'Closed' },
+  });
+
+  return { success: true, message: 'Ticket closed successfully' };
+}
